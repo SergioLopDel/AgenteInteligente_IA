@@ -1,13 +1,41 @@
+import pygame
 import random
-import os
 import time
-from collections import deque
 import math
 
-# Se define el tamaño del mapa
-malla = 20
+# Inicializar pygame
+pygame.init()
 
-# Representación del mundo (Matriz)
+# Definir el tamaño del mapa
+tamano = 10  # Reducido para visualizar mejor en pantalla
+tamano_celda = 50  # Tamaño de cada celda en píxeles
+tamano_ventana = tamano * tamano_celda
+
+# Colores
+BLANCO = (255, 255, 255)
+NEGRO = (0, 0, 0)
+
+# Cargar imágenes
+img_agente = pygame.image.load("assets/avatar.png")
+img_wumpus = pygame.image.load("assets/wumpus.jpg")
+img_pozo = pygame.image.load("assets/tree1.png")
+img_premio = pygame.image.load("assets/treasure.png")
+img_pasto = pygame.image.load("assets/grass2.jpg")
+img_camino = pygame.image.load("assets/road.jpg")
+
+# Redimensionar imágenes
+img_agente = pygame.transform.scale(img_agente, (tamano_celda, tamano_celda))
+img_wumpus = pygame.transform.scale(img_wumpus, (tamano_celda, tamano_celda))
+img_pozo = pygame.transform.scale(img_pozo, (tamano_celda, tamano_celda))
+img_premio = pygame.transform.scale(img_premio, (tamano_celda, tamano_celda))
+img_pasto = pygame.transform.scale(img_pasto, (tamano_celda, tamano_celda))
+img_camino = pygame.transform.scale(img_camino, (tamano_celda, tamano_celda))
+
+# Configurar la pantalla
+pantalla = pygame.display.set_mode((tamano_ventana, tamano_ventana))
+pygame.display.set_caption("Mundo del Wumpus")
+
+# Clase del tablero
 class Tablero:
     def __init__(self, tamano):
         self.tamano = tamano
@@ -20,45 +48,61 @@ class Tablero:
         self.crearMundo()
 
     def crearMundo(self):
-        # Se coloca el wumpus en una celda aleatoria
-        self.monstruo = (random.randint(0, self.tamano - 1), random.randint(0, self.tamano - 1))
-        self.mapa[self.monstruo[0]][self.monstruo[1]] = "W"
+        # Asegurarse de que la posición (0, 0) esté libre
+        while True:
+            # Se coloca el wumpus en una celda aleatoria
+            self.monstruo = (random.randint(0, self.tamano - 1), random.randint(0, self.tamano - 1))
+            self.mapa[self.monstruo[0]][self.monstruo[1]] = "W"
 
-        # Se colocan los obstáculos (número de pozos)
-        for _ in range(10):  # Reducimos el número de pozos
-            pozo = (random.randint(0, self.tamano - 1), random.randint(0, self.tamano - 1))
-            while pozo == self.monstruo or pozo in self.peligros:  # Evitar que se repitan las posiciones
+            # Se colocan los obstáculos (número de pozos)
+            self.peligros = []
+            for _ in range(5):  # Reducimos el número de pozos
                 pozo = (random.randint(0, self.tamano - 1), random.randint(0, self.tamano - 1))
-            self.peligros.append(pozo)
-            self.mapa[pozo[0]][pozo[1]] = 'P'
+                while pozo == self.monstruo or pozo in self.peligros:  # Evitar que se repitan las posiciones
+                    pozo = (random.randint(0, self.tamano - 1), (random.randint(0, self.tamano - 1)))
+                self.peligros.append(pozo)
+                self.mapa[pozo[0]][pozo[1]] = 'P'
 
-        # Se coloca el premio en el mapa
-        self.premio = (random.randint(0, self.tamano - 1), random.randint(0, self.tamano - 1))
-        while self.premio == self.monstruo or self.premio in self.peligros:
+            # Se coloca el premio en el mapa
             self.premio = (random.randint(0, self.tamano - 1), random.randint(0, self.tamano - 1))
-        self.mapa[self.premio[0]][self.premio[1]] = "F"
+            while self.premio == self.monstruo or self.premio in self.peligros:
+                self.premio = (random.randint(0, self.tamano - 1), random.randint(0, self.tamano - 1))
+            self.mapa[self.premio[0]][self.premio[1]] = "F"
 
-        # Asignar costos a las celdas
+            # Asignar costos a las celdas
+            for i in range(self.tamano):
+                for j in range(self.tamano):
+                    if self.mapa[i][j] == '':  # Celda vacía
+                        # Asignar costos aleatorios: 1 (normal), 2 (terreno A), 3 (terreno B)
+                        self.costos[i][j] = random.choice([1, 2, 3])
+
+            # Verificar que la posición (0, 0) esté libre
+            if (0, 0) not in self.peligros and (0, 0) != self.monstruo and (0, 0) != self.premio:
+                break
+            else:
+                # Si no está libre, reiniciar el mundo
+                self.mapa = [['' for _ in range(self.tamano)] for _ in range(self.tamano)]
+                self.costos = [[1 for _ in range(self.tamano)] for _ in range(self.tamano)]
+                self.peligros = []
+                self.premio = []
+                self.monstruo = []
+                self.revelado = [[False for _ in range(self.tamano)] for _ in range(self.tamano)]
+
+    def dibujar(self, agente_pos):
+        pantalla.fill(BLANCO)
         for i in range(self.tamano):
             for j in range(self.tamano):
-                if self.mapa[i][j] == '':  # Celda vacía
-                    # Asignar costos aleatorios: 1 (normal), 2 (terreno A), 3 (terreno B)
-                    self.costos[i][j] = random.choice([1, 2, 3])
-
-    def mostrarTablero(self, agente_pos):  # Método para mostrar el mapa
-        os.system('cls' if os.name == 'nt' else 'clear')  # Limpiar la pantalla
-        for i in range(self.tamano):
-            for j in range(self.tamano):
-                if (i, j) == agente_pos:  # Mostrar la posición del agente
-                    print("A", end=" ")
-                elif self.mapa[i][j] in ['W', 'P', 'F']:  # Mostrar Wumpus, pozos y premio siempre
-                    print(self.mapa[i][j], end=" ")
-                elif self.revelado[i][j]:  # Mostrar el costo si la celda ha sido revelada
-                    print(self.costos[i][j], end=" ")
-                else:
-                    print(".", end=" ")  # Mostrar puntos para celdas no reveladas
-            print()
-        print()
+                x, y = j * tamano_celda, i * tamano_celda
+                pantalla.blit(img_pasto, (x, y))
+                if (i, j) in self.peligros:
+                    pantalla.blit(img_pozo, (x, y))
+                elif (i, j) == self.monstruo:
+                    pantalla.blit(img_wumpus, (x, y))
+                elif (i, j) == self.premio:
+                    pantalla.blit(img_premio, (x, y))
+                elif (i, j) == agente_pos:
+                    pantalla.blit(img_agente, (x, y))
+        pygame.display.flip()
 
 # Clase para representar un nodo en el mundo
 class Nodo:
@@ -167,7 +211,7 @@ class Agente:
             self.costo_total += self.mundo.costos[paso[0]][paso[1]]  # Sumar el costo de la celda
             self.mundo.revelado[paso[0]][paso[1]] = True  # Revelar el costo de la celda
             self.percepcion()
-            self.mundo.mostrarTablero(self.posicion)
+            self.mundo.dibujar(self.posicion)
             print(f"Ruta actual: {self.ruta}")  # Mostrar la ruta actual
             time.sleep(1)
 
@@ -209,14 +253,21 @@ class Agente:
             print("El agente ha muerto.")
 
 # Crear mundo y agente
-mundo = Tablero(malla)  # Crear el mundo
+mundo = Tablero(tamano)  # Crear el mundo
 agente = Agente(mundo)  # Crear el agente
 
-# Mostrar el mapa inicial
-mundo.mostrarTablero(agente.posicion)
+# Dibujar el estado inicial
+mundo.dibujar(agente.posicion)
+time.sleep(2)
 
 # El agente intenta moverse hacia el premio
 agente.mover_hacia_premio()
 
-# Mostrar el estado final del agente
-agente.estado()
+# Mantener la ventana abierta hasta que el usuario la cierre
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+pygame.quit()
