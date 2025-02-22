@@ -33,7 +33,7 @@ img_camino = pygame.transform.scale(img_camino, (tamano_celda, tamano_celda))
 
 # Configurar la pantalla
 pantalla = pygame.display.set_mode((tamano_ventana, tamano_ventana))
-pygame.display.set_caption("Mundo del Wumpus")
+pygame.display.set_caption("Proyecto 1.- Agente Inteligente")
 
 # Clase del tablero
 class Tablero:
